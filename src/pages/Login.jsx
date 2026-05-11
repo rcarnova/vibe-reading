@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import VibeLogo from '../components/VibeLogo'
 
@@ -9,6 +9,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const navigate = useNavigate()
+  const location = useLocation()
+  const successMessage = location.state?.message
 
   const inputClass = [
     'w-full bg-transparent font-sans text-sm text-ink placeholder:text-muted',
@@ -40,6 +42,12 @@ export default function Login() {
         <h1 className="font-display italic font-black text-3xl text-ink leading-tight mb-8 text-center">
           Accedi alla tua biblioteca
         </h1>
+
+        {successMessage && (
+          <p className="font-sans text-xs text-ink border border-ink px-4 py-2 mb-6 text-center">
+            {successMessage}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           <div>

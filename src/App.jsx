@@ -8,6 +8,7 @@ import AddBook from './pages/AddBook'
 import SavedPaths from './pages/SavedPaths'
 import ReaderProfile from './pages/ReaderProfile'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Import from './pages/Import'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ScrollToTop } from './components/ScrollToTop'
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/book/:id" element={<BookDetail />} />
           <Route path="/reading-path" element={<ReadingPath />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/add-book" element={<ProtectedRoute><AddBook /></ProtectedRoute>} />
           <Route path="/percorsi-salvati" element={<ProtectedRoute><SavedPaths /></ProtectedRoute>} />
           <Route path="/profilo" element={<ProtectedRoute><ReaderProfile /></ProtectedRoute>} />
