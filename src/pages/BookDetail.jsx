@@ -521,8 +521,8 @@ function CriticalContext({ book, context, loading }) {
 
 // ─── Content — separate component so hooks are always called in stable order ──
 
-function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalContext, loadingCritical }) {
-  const { loading, url, description, aiGenerated } = useCoverImage(book)
+function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalContext, loadingCritical, aiEnabled }) {
+  const { loading, url, description, aiGenerated } = useCoverImage(book, aiEnabled)
   const { title, series, volume } = parseTitle(book.title)
   const { user } = useAuth()
 
@@ -772,6 +772,8 @@ export default function BookDetail() {
   const [criticalContext, setCriticalContext] = useState(null)
   const [loadingCritical, setLoadingCritical] = useState(false)
 
+  const aiEnabled = localStorage.getItem('ai-enabled') === 'true'
+
   async function fetchBook() {
     setLoadingBook(true)
     const { data, error } = await supabase
@@ -797,6 +799,7 @@ export default function BookDetail() {
       setCriticalContext(book.critical_context)
       return
     }
+    if (!aiEnabled) return
     setLoadingCritical(true)
     setCriticalContext(null)
     fetchCriticalContext(book)
@@ -807,7 +810,7 @@ export default function BookDetail() {
 
   // Trigger next step suggestion once book loads and is 'read'
   useEffect(() => {
-    if (!book || book.status !== 'read') return
+    if (!book || book.status !== 'read' || !aiEnabled) return
     setLoadingNextStep(true)
     setNextStep(null)
     fetchNextStep(book)
@@ -853,6 +856,7 @@ export default function BookDetail() {
             loadingNextStep={loadingNextStep}
             criticalContext={criticalContext}
             loadingCritical={loadingCritical}
+            aiEnabled={aiEnabled}
           />
           {isEditing && (
             <EditModal

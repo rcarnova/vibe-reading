@@ -346,7 +346,8 @@ export default function ReadingPath() {
     })
   }
 
-  const canGenerate = selectedContexts.length > 0 && !generating && !loadingBooks
+  const aiEnabled = localStorage.getItem('ai-enabled') === 'true'
+  const canGenerate = selectedContexts.length > 0 && !generating && !loadingBooks && aiEnabled
 
   return (
     <main className="max-w-[1200px] mx-auto px-6 py-12">
@@ -413,6 +414,12 @@ export default function ReadingPath() {
             {freeText.length}/{MAX_CONTEXT_LENGTH}
           </p>
         </div>
+
+        {!aiEnabled && (
+          <p className="font-sans text-xs text-muted mb-4">
+            Attiva AI dalla home per generare percorsi
+          </p>
+        )}
 
         {/* Generate button */}
         <button

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Copy, ExternalLink } from 'lucide-react'
+import { Copy, ExternalLink, Sparkles } from 'lucide-react'
 import VibeLogo from '../components/VibeLogo'
 import { supabase } from '../lib/supabase'
 import { useCoverImage } from '../hooks/useCoverImage'
@@ -400,6 +400,14 @@ export default function Home() {
   const textareaRef = useRef(null)
   const resultsRef = useRef(null)
 
+  const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai-enabled') === 'true')
+
+  const toggleAI = () => {
+    const newValue = !aiEnabled
+    setAiEnabled(newValue)
+    localStorage.setItem('ai-enabled', String(newValue))
+  }
+
   // Reality bridge state
   const [bridgeBooks, setBridgeBooks] = useState([])
   const [bridgeNews, setBridgeNews] = useState(null)
@@ -441,6 +449,8 @@ export default function Home() {
         setBridgeNews(newsItems)
         setBridgeBooks(books)
 
+        if (!aiEnabled) return
+
         // Only generate if not already cached
         const cached = (() => {
           try { return JSON.parse(sessionStorage.getItem('reality-bridge')) } catch { return null }
@@ -462,7 +472,7 @@ export default function Home() {
   }, [])
 
   async function handleRefreshConnection() {
-    if (!bridgeNews?.length || !bridgeBooks.length) return
+    if (!bridgeNews?.length || !bridgeBooks.length || !aiEnabled) return
     setLoadingRefresh(true)
     setConnection(null)
     try {
@@ -494,7 +504,7 @@ export default function Home() {
   })()
 
   // Determine whether to show the bridge section at all
-  const showBridge = loadingConnection || connection
+  const showBridge = aiEnabled && (loadingConnection || connection)
 
   function handleInput(e) {
     const value = e.target.value
@@ -571,7 +581,7 @@ export default function Home() {
     })
   }
 
-  const canSubmit = input.trim().length >= 20 && !loading
+  const canSubmit = input.trim().length >= 20 && !loading && aiEnabled
 
   return (
     <div style={{ backgroundColor: '#C8D8E8', position: 'relative', minHeight: '100vh' }}>
@@ -676,21 +686,46 @@ export default function Home() {
             />
           </div>
 
-          <button
-            onClick={handleDiscover}
-            disabled={!canSubmit}
-            className="w-full sm:w-auto sm:self-center font-sans font-medium text-xs uppercase tracking-[0.18em] transition-colors"
-            style={{
-              background: canSubmit ? 'white' : 'rgba(255,255,255,0.4)',
-              color: canSubmit ? '#1A1A1A' : 'rgba(255,255,255,0.7)',
-              border: 'none', padding: '12px 32px', borderRadius: 0,
-              cursor: canSubmit ? 'pointer' : 'not-allowed', letterSpacing: '0.12em',
-            }}
-            onMouseEnter={(e) => { if (canSubmit) e.currentTarget.style.background = '#F0EFE9' }}
-            onMouseLeave={(e) => { if (canSubmit) e.currentTarget.style.background = 'white' }}
-          >
-            {loading ? 'Sto cercando…' : 'Scopri i tuoi prossimi libri'}
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              onClick={handleDiscover}
+              disabled={!canSubmit}
+              className="w-full sm:w-auto font-sans font-medium text-xs uppercase tracking-[0.18em] transition-colors"
+              style={{
+                background: canSubmit ? 'white' : 'rgba(255,255,255,0.4)',
+                color: canSubmit ? '#1A1A1A' : 'rgba(255,255,255,0.7)',
+                border: 'none', padding: '12px 32px', borderRadius: 0,
+                cursor: canSubmit ? 'pointer' : 'not-allowed', letterSpacing: '0.12em',
+              }}
+              onMouseEnter={(e) => { if (canSubmit) e.currentTarget.style.background = '#F0EFE9' }}
+              onMouseLeave={(e) => { if (canSubmit) e.currentTarget.style.background = 'white' }}
+            >
+              {loading ? 'Sto cercando…' : !aiEnabled ? 'Attiva AI per scoprire libri' : 'Scopri i tuoi prossimi libri'}
+            </button>
+
+            <button
+              onClick={toggleAI}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                border: '1px solid rgba(255,255,255,0.4)',
+                padding: '4px 12px',
+                background: 'transparent',
+                cursor: 'pointer',
+                color: aiEnabled ? 'white' : 'rgba(255,255,255,0.4)',
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: '11px',
+                letterSpacing: '0.05em',
+                boxShadow: aiEnabled ? '0 0 8px rgba(255,255,255,0.25)' : 'none',
+                transition: 'all 0.2s',
+                flexShrink: 0,
+              }}
+            >
+              <Sparkles size={11} strokeWidth={1.75} />
+              {aiEnabled ? 'AI attiva' : 'AI disattivata'}
+            </button>
+          </div>
 
           {error && (
             <p className="font-sans text-xs text-center" style={{ color: 'rgba(255,255,255,0.9)' }}>

@@ -82,7 +82,7 @@ async function openLibraryDescription(isbn, title, author) {
 
 // ─── Main resolver ────────────────────────────────────────────────────────────
 
-async function resolve(book) {
+async function resolve(book, aiEnabled = true) {
   const { isbn, title, author } = book
 
   // ── Cover ──
@@ -119,7 +119,7 @@ async function resolve(book) {
 
   // ── AI fallback + persist ──
   let aiGenerated = false
-  if (!description) {
+  if (!description && aiEnabled) {
     try {
       description = await generateSynopsis(title, author, book.genre)
       if (description) {
@@ -147,7 +147,7 @@ async function resolve(book) {
  *   description – synopsis text, or null if unavailable from all sources
  *   aiGenerated – true when description was produced by the AI fallback
  */
-export function useCoverImage(book) {
+export function useCoverImage(book, aiEnabled = true) {
   const cacheKey = book.isbn || `${book.title}::${book.author}`
 
   const [state, setState] = useState(() => {
@@ -162,7 +162,7 @@ export function useCoverImage(book) {
 
     let cancelled = false
 
-    resolve(book).then((result) => {
+    resolve(book, aiEnabled).then((result) => {
       if (cancelled) return
       cache.set(cacheKey, result)
       setState({ loading: false, ...result })

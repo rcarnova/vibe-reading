@@ -124,6 +124,8 @@ export default function ReaderProfile() {
   const [error, setError] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
+  const aiEnabled = localStorage.getItem('ai-enabled') === 'true'
+
   useEffect(() => {
     fetchProfile()
   }, [])
@@ -237,12 +239,18 @@ export default function ReaderProfile() {
           <ProfileContent content={profile.content} />
 
           <div className="mt-12 pt-6 border-t border-rule">
-            <button
-              onClick={handleRegenerateClick}
-              className="font-sans text-xs uppercase tracking-[0.12em] text-ink border border-ink px-4 py-2 hover:bg-ink hover:text-paper transition-colors"
-            >
-              Rigenera profilo
-            </button>
+            {aiEnabled ? (
+              <button
+                onClick={handleRegenerateClick}
+                className="font-sans text-xs uppercase tracking-[0.12em] text-ink border border-ink px-4 py-2 hover:bg-ink hover:text-paper transition-colors"
+              >
+                Rigenera profilo
+              </button>
+            ) : (
+              <p className="font-sans text-xs text-muted">
+                Attiva AI dalla home per rigenerare il profilo
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -250,12 +258,18 @@ export default function ReaderProfile() {
           <p className="font-display italic text-xl text-muted mb-8">
             Non hai ancora un profilo di lettore.
           </p>
-          <button
-            onClick={handleRegenerateClick}
-            className="font-sans text-xs uppercase tracking-[0.15em] bg-ink text-paper px-8 py-3 hover:bg-accent transition-colors"
-          >
-            Genera il mio profilo
-          </button>
+          {aiEnabled ? (
+            <button
+              onClick={handleRegenerateClick}
+              className="font-sans text-xs uppercase tracking-[0.15em] bg-ink text-paper px-8 py-3 hover:bg-accent transition-colors"
+            >
+              Genera il mio profilo
+            </button>
+          ) : (
+            <p className="font-sans text-xs text-muted">
+              Attiva AI dalla home per generare il profilo
+            </p>
+          )}
         </div>
       )}
 
