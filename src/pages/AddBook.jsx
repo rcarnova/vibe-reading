@@ -75,7 +75,11 @@ async function searchGoogleBooks(query) {
   const res = await fetchWithTimeout(
     `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5${GBOOKS_KEY_PARAM}`
   )
-  if (!res.ok) throw new Error('Errore nella ricerca')
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    const msg = body?.error?.message || `HTTP ${res.status}`
+    throw new Error(msg)
+  }
   const data = await res.json()
   return (data.items ?? []).map(extractBookData)
 }
