@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 // ─── Date formatting ──────────────────────────────────────────────────────────
@@ -124,7 +125,12 @@ export default function ReaderProfile() {
   const [error, setError] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
-  const aiEnabled = localStorage.getItem('ai-enabled') === 'true'
+  const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai-enabled') === 'true')
+  function toggleAI() {
+    const newValue = !aiEnabled
+    setAiEnabled(newValue)
+    localStorage.setItem('ai-enabled', String(newValue))
+  }
 
   useEffect(() => {
     fetchProfile()
@@ -238,19 +244,22 @@ export default function ReaderProfile() {
 
           <ProfileContent content={profile.content} />
 
-          <div className="mt-12 pt-6 border-t border-rule">
-            {aiEnabled ? (
+          <div className="mt-12 pt-6 border-t border-rule flex items-center gap-4 flex-wrap">
+            {aiEnabled && (
               <button
                 onClick={handleRegenerateClick}
                 className="font-sans text-xs uppercase tracking-[0.12em] text-ink border border-ink px-4 py-2 hover:bg-ink hover:text-paper transition-colors"
               >
                 Rigenera profilo
               </button>
-            ) : (
-              <p className="font-sans text-xs text-muted">
-                Attiva AI dalla home per rigenerare il profilo
-              </p>
             )}
+            <button
+              onClick={toggleAI}
+              className="inline-flex items-center gap-1.5 font-sans text-[11px] px-3 py-1.5 border border-rule text-muted hover:border-ink hover:text-ink transition-colors"
+            >
+              <Sparkles size={11} strokeWidth={1.75} className={aiEnabled ? 'text-accent' : ''} />
+              {aiEnabled ? 'AI attiva' : 'AI disattivata'}
+            </button>
           </div>
         </div>
       ) : (
@@ -258,18 +267,23 @@ export default function ReaderProfile() {
           <p className="font-display italic text-xl text-muted mb-8">
             Non hai ancora un profilo di lettore.
           </p>
-          {aiEnabled ? (
+          <div className="flex items-center gap-4 flex-wrap">
+            {aiEnabled && (
+              <button
+                onClick={handleRegenerateClick}
+                className="font-sans text-xs uppercase tracking-[0.15em] bg-ink text-paper px-8 py-3 hover:bg-accent transition-colors"
+              >
+                Genera il mio profilo
+              </button>
+            )}
             <button
-              onClick={handleRegenerateClick}
-              className="font-sans text-xs uppercase tracking-[0.15em] bg-ink text-paper px-8 py-3 hover:bg-accent transition-colors"
+              onClick={toggleAI}
+              className="inline-flex items-center gap-1.5 font-sans text-[11px] px-3 py-1.5 border border-rule text-muted hover:border-ink hover:text-ink transition-colors"
             >
-              Genera il mio profilo
+              <Sparkles size={11} strokeWidth={1.75} className={aiEnabled ? 'text-accent' : ''} />
+              {aiEnabled ? 'AI attiva' : 'AI disattivata'}
             </button>
-          ) : (
-            <p className="font-sans text-xs text-muted">
-              Attiva AI dalla home per generare il profilo
-            </p>
-          )}
+          </div>
         </div>
       )}
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
@@ -346,7 +347,13 @@ export default function ReadingPath() {
     })
   }
 
-  const aiEnabled = localStorage.getItem('ai-enabled') === 'true'
+  const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai-enabled') === 'true')
+  function toggleAI() {
+    const newValue = !aiEnabled
+    setAiEnabled(newValue)
+    localStorage.setItem('ai-enabled', String(newValue))
+  }
+
   const canGenerate = selectedContexts.length > 0 && !generating && !loadingBooks && aiEnabled
 
   return (
@@ -415,25 +422,29 @@ export default function ReadingPath() {
           </p>
         </div>
 
-        {!aiEnabled && (
-          <p className="font-sans text-xs text-muted mb-4">
-            Attiva AI dalla home per generare percorsi
-          </p>
-        )}
+        {/* Generate button + AI toggle */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <button
+            onClick={handleGenerate}
+            disabled={!canGenerate}
+            className={[
+              'font-sans text-xs uppercase tracking-[0.15em] px-8 py-3 transition-colors',
+              canGenerate
+                ? 'bg-ink text-paper hover:bg-accent cursor-pointer'
+                : 'bg-rule text-muted cursor-not-allowed',
+            ].join(' ')}
+          >
+            Genera il mio percorso
+          </button>
 
-        {/* Generate button */}
-        <button
-          onClick={handleGenerate}
-          disabled={!canGenerate}
-          className={[
-            'font-sans text-xs uppercase tracking-[0.15em] px-8 py-3 transition-colors',
-            canGenerate
-              ? 'bg-ink text-paper hover:bg-accent cursor-pointer'
-              : 'bg-rule text-muted cursor-not-allowed',
-          ].join(' ')}
-        >
-          Genera il mio percorso
-        </button>
+          <button
+            onClick={toggleAI}
+            className="inline-flex items-center gap-1.5 font-sans text-[11px] px-3 py-1.5 border border-rule text-muted hover:border-ink hover:text-ink transition-colors"
+          >
+            <Sparkles size={11} strokeWidth={1.75} className={aiEnabled ? 'text-accent' : ''} />
+            {aiEnabled ? 'AI attiva' : 'AI disattivata'}
+          </button>
+        </div>
       </div>
 
       {/* Loading state */}
