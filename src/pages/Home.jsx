@@ -612,8 +612,8 @@ export default function Home() {
 
       {/* Hero */}
       <section
-        style={{ position: 'relative', zIndex: 1, minHeight: '100dvh' }}
-        className="flex flex-col items-center justify-center px-6 py-20"
+        style={{ position: 'relative', zIndex: 1 }}
+        className="flex flex-col items-center px-6 pt-20 pb-16"
       >
         <h1 className="mb-4">
           <VibeLogo size="lg" theme="light" />
@@ -733,6 +733,34 @@ export default function Home() {
             </p>
           )}
         </div>
+
+        {/* Reality bridge */}
+        {showBridge && (
+          <div style={{ width: 'min(960px, 90vw)', marginTop: '64px' }}>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '40px' }}>
+              <p
+                className="font-sans text-[9px] uppercase tracking-[0.22em] mb-6"
+                style={{ color: '#6B6B6B' }}
+              >
+                Il mondo oggi, la tua biblioteca sempre
+              </p>
+              {loadingConnection || (connection && !bridgeBook && loadingRefresh) ? (
+                <RealityBridgeSkeleton />
+              ) : connection ? (
+                <RealityBridgeCard
+                  connection={connection}
+                  newsUrl={resolvedNewsUrl}
+                  book={bridgeBook}
+                  onRefresh={handleRefreshConnection}
+                  loadingRefresh={loadingRefresh}
+                  onNavigate={saveScroll}
+                />
+              ) : loadingRefresh ? (
+                <RealityBridgeSkeleton />
+              ) : null}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Recommendations results */}
@@ -779,43 +807,6 @@ export default function Home() {
         </section>
       )}
 
-      {/* Reality bridge section */}
-      {showBridge && (
-        <section
-          style={{ position: 'relative', zIndex: 1 }}
-          className="px-6 pb-24"
-        >
-          <div style={{ width: 'min(960px, 100%)', margin: '0 auto' }}>
-            {/* Separator */}
-            <div
-              className="mb-8"
-              style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '40px' }}
-            >
-              <p
-                className="font-sans text-[9px] uppercase tracking-[0.22em] mb-6"
-                style={{ color: '#6B6B6B' }}
-              >
-                Il mondo oggi, la tua biblioteca sempre
-              </p>
-
-              {loadingConnection || (connection && !bridgeBook && loadingRefresh) ? (
-                <RealityBridgeSkeleton />
-              ) : connection ? (
-                <RealityBridgeCard
-                  connection={connection}
-                  newsUrl={resolvedNewsUrl}
-                  book={bridgeBook}
-                  onRefresh={handleRefreshConnection}
-                  loadingRefresh={loadingRefresh}
-                  onNavigate={saveScroll}
-                />
-              ) : loadingRefresh ? (
-                <RealityBridgeSkeleton />
-              ) : null}
-            </div>
-          </div>
-        </section>
-      )}
     </div>
   )
 }
