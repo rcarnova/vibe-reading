@@ -252,6 +252,7 @@ function ResultDisplay({ result, allBooks, onRegenerate, onShare, onSave, saving
 
 export default function ReadingPath() {
   const { user } = useAuth()
+  const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai-enabled') === 'true')
   const [allBooks, setAllBooks] = useState([])
   const [loadingBooks, setLoadingBooks] = useState(true)
 
@@ -311,6 +312,10 @@ export default function ReadingPath() {
   }
 
   async function handleGenerate() {
+    if (!aiEnabled) {
+      setError('Attiva AI per generare percorsi')
+      return
+    }
     sessionStorage.removeItem('readingPath')
     setSaved(false)
     setGenerating(true)
@@ -347,14 +352,13 @@ export default function ReadingPath() {
     })
   }
 
-  const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai-enabled') === 'true')
   function toggleAI() {
     const newValue = !aiEnabled
     setAiEnabled(newValue)
     localStorage.setItem('ai-enabled', String(newValue))
   }
 
-  const canGenerate = selectedContexts.length > 0 && !generating && !loadingBooks && aiEnabled
+  const canGenerate = selectedContexts.length > 0 && !generating && !loadingBooks
 
   return (
     <main className="max-w-[1200px] mx-auto px-6 py-12">
