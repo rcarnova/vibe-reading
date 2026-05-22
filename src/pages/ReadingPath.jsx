@@ -316,6 +316,10 @@ export default function ReadingPath() {
       setError('Attiva AI per generare percorsi')
       return
     }
+    if (selectedContexts.length === 0) {
+      setError('Seleziona almeno un obiettivo di crescita')
+      return
+    }
     sessionStorage.removeItem('readingPath')
     setSaved(false)
     setGenerating(true)
@@ -358,7 +362,7 @@ export default function ReadingPath() {
     localStorage.setItem('ai-enabled', String(newValue))
   }
 
-  const canGenerate = selectedContexts.length > 0 && !generating && !loadingBooks
+  const canGenerate = !generating
 
   return (
     <main className="max-w-[1200px] mx-auto px-6 py-12">
