@@ -71,7 +71,7 @@ function extractBookData(item) {
   }
 }
 
-async function searchGoogleBooks(query) {
+async function searchGoogleBooksOnce(query) {
   const res = await fetchWithTimeout(
     `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5${GBOOKS_KEY_PARAM}`
   )
@@ -82,6 +82,19 @@ async function searchGoogleBooks(query) {
   }
   const data = await res.json()
   return (data.items ?? []).map(extractBookData)
+}
+
+async function searchGoogleBooks(query) {
+  // Google Books API returns intermittent 503s — retry a couple times before surfacing an error
+  const attempts = 3
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await searchGoogleBooksOnce(query)
+    } catch (err) {
+      if (i === attempts - 1) throw err
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
 }
 
 async function fetchByIsbn(cleanISBN) {
