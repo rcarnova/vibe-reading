@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { generateCoverPlaceholder } from '../utils/generateCoverPlaceholder'
+import { generateNobelUtetCover } from '../utils/generateNobelUtetCover'
 
 function NobelSpine({ book }) {
-  const placeholder = generateCoverPlaceholder(`Premio Nobel ${book.year}`, book.author)
+  const placeholder = generateNobelUtetCover(book.author, book.year)
 
   return (
     <Link to={`/book/${book.id}`} className="group flex flex-col">
@@ -20,10 +20,13 @@ function NobelSpine({ book }) {
       </div>
 
       <div className="pt-3 flex flex-col gap-1">
-        <span className="font-sans text-[9px] uppercase tracking-[0.18em] border border-accent text-accent px-1.5 py-px self-start">
+        <span
+          className="font-sans text-[9px] uppercase tracking-[0.18em] px-1.5 py-px self-start"
+          style={{ border: '1px solid #701F2E', color: '#701F2E' }}
+        >
           {book.year}
         </span>
-        <h3 className="font-display font-bold text-[0.92rem] leading-snug text-ink line-clamp-2 group-hover:text-accent transition-colors duration-150">
+        <h3 className="font-display font-bold text-[0.92rem] leading-snug text-ink line-clamp-2 group-hover:text-[#701F2E] transition-colors duration-150">
           {book.author}
         </h3>
         {book.notes && (
