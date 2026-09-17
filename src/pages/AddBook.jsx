@@ -27,6 +27,7 @@ const STATUS_OPTIONS = [
   { value: 'to-read', label: 'Da leggere' },
   { value: 'reading', label: 'In lettura' },
   { value: 'read',    label: 'Letto' },
+  { value: 'in-consultazione', label: 'In consultazione' },
 ]
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────

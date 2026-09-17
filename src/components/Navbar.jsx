@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 
 const NAV_LINKS = [
   { to: '/biblioteca', label: 'Biblioteca' },
+  { to: '/nobel-utet', label: 'Collana Nobel UTET' },
   { to: '/reading-path', label: 'Percorso di lettura' },
   { to: '/percorsi-salvati', label: 'Percorsi salvati' },
   { to: '/profilo', label: 'Profilo' },

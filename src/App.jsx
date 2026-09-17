@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Home from './pages/Home'
 import Library from './pages/Library'
+import NobelUtet from './pages/NobelUtet'
 import BookDetail from './pages/BookDetail'
 import ReadingPath from './pages/ReadingPath'
 import AddBook from './pages/AddBook'
@@ -22,6 +23,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/biblioteca" element={<Library />} />
+          <Route path="/nobel-utet" element={<NobelUtet />} />
           <Route path="/book/:id" element={<BookDetail />} />
           <Route path="/reading-path" element={<ReadingPath />} />
           <Route path="/login" element={<Login />} />

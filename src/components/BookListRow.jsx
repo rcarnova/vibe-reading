@@ -5,12 +5,14 @@ const statusBadge = {
   read:     'border-[#2D6A4F] text-[#2D6A4F]',
   reading:  'border-[#1D4E89] text-[#1D4E89]',
   'to-read':'border-muted text-muted',
+  'in-consultazione': 'border-accent text-accent',
 }
 
 const statusLabels = {
   read:     'Letto',
   reading:  'In lettura',
   'to-read':'Da leggere',
+  'in-consultazione': 'In consultazione',
 }
 
 export default function BookListRow({ book }) {

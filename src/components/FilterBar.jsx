@@ -3,6 +3,7 @@ const statusOptions = [
   { value: 'read', label: 'Letto' },
   { value: 'reading', label: 'In lettura' },
   { value: 'to-read', label: 'Da leggere' },
+  { value: 'in-consultazione', label: 'In consultazione' },
 ]
 
 const ownershipOptions = [
