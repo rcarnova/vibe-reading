@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link, Navigate } from 'react-router-dom'
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom'
 import { ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import StarRating from '../components/StarRating'
@@ -64,7 +64,7 @@ function StarPicker({ value, onChange }) {
 
 // ─── Edit modal ───────────────────────────────────────────────────────────────
 
-function EditModal({ book, onClose, onSaved }) {
+function EditModal({ book, onClose, onSaved, onDeleted }) {
   const [form, setForm] = useState({
     title:          book.title ?? '',
     author:         book.author ?? '',
@@ -80,6 +80,9 @@ function EditModal({ book, onClose, onSaved }) {
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -123,6 +126,18 @@ function EditModal({ book, onClose, onSaved }) {
       setError('Errore durante il salvataggio. Riprova.')
     } else {
       onSaved()
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    setDeleteError(null)
+    const { error } = await supabase.from('books').delete().eq('id', book.id)
+    setDeleting(false)
+    if (error) {
+      setDeleteError('Errore durante l\'eliminazione. Riprova.')
+    } else {
+      onDeleted()
     }
   }
 
@@ -343,6 +358,47 @@ function EditModal({ book, onClose, onSaved }) {
             >
               Annulla
             </button>
+          </div>
+
+          {/* Danger zone */}
+          <div className="pt-6 mt-2 border-t border-rule">
+            {!confirmingDelete ? (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="font-sans text-xs uppercase tracking-[0.15em] px-8 py-3 border transition-colors"
+                style={{ borderColor: '#C41E3A', color: '#C41E3A' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#C41E3A'; e.currentTarget.style.color = '#FFF' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#C41E3A' }}
+              >
+                Elimina libro
+              </button>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="font-sans text-sm text-ink">
+                  Sei sicuro di volerlo eliminare?
+                </p>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="font-sans text-xs uppercase tracking-[0.15em] px-8 py-3 text-paper transition-colors disabled:opacity-60"
+                    style={{ background: '#C41E3A' }}
+                  >
+                    {deleting ? 'Eliminazione…' : 'Sì, elimina'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={deleting}
+                    className="font-sans text-xs uppercase tracking-[0.15em] text-muted hover:text-ink transition-colors"
+                  >
+                    Annulla
+                  </button>
+                </div>
+                {deleteError && (
+                  <p className="font-sans text-xs text-accent">{deleteError}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -764,6 +820,7 @@ Solo JSON, nient'altro.`,
 
 export default function BookDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [book, setBook] = useState(undefined)
   const [loadingBook, setLoadingBook] = useState(true)
   const [isEditing, setIsEditing] = useState(false)
@@ -824,6 +881,10 @@ export default function BookDetail() {
     fetchBook()
   }
 
+  function handleDeleted() {
+    navigate('/biblioteca')
+  }
+
   return (
     <main className="max-w-[1200px] mx-auto px-6 py-12">
       <Link
@@ -863,6 +924,7 @@ export default function BookDetail() {
               book={book}
               onClose={() => setIsEditing(false)}
               onSaved={handleSaved}
+              onDeleted={handleDeleted}
             />
           )}
         </>
