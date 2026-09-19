@@ -498,6 +498,77 @@ function NextStepCard({ suggestion, loading }) {
   )
 }
 
+// ─── Similar books ─────────────────────────────────────────────────────────────
+
+function SimilarBooksSection({ books, loading, user, onRegenerate }) {
+  if (!loading && !books) return null
+
+  return (
+    <section className="mt-8">
+      <hr className="border-rule mb-5" />
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="font-sans text-[9px] uppercase tracking-[0.18em] text-muted">
+          Libri vicini
+        </h2>
+        {user && !loading && (
+          <button
+            onClick={onRegenerate}
+            className="font-sans text-[9px] uppercase tracking-[0.18em] text-muted hover:text-ink border-b border-transparent hover:border-ink transition-colors"
+          >
+            Rigenera
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col gap-2">
+              <div className="aspect-[2/3] bg-rule animate-pulse" />
+              <div className="h-2.5 bg-rule animate-pulse w-3/4" />
+              <div className="h-2 bg-rule animate-pulse w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : books.length > 0 ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+          {books.map((b) => {
+            const placeholder = generateCoverPlaceholder(b.title, b.author)
+            return (
+              <Link key={b.id} to={`/book/${b.id}`} className="group flex flex-col gap-2">
+                <div
+                  className="aspect-[2/3] bg-badge overflow-hidden"
+                  style={{ boxShadow: '2px 3px 10px rgba(0,0,0,0.12)' }}
+                >
+                  <img
+                    src={b.cover_url || placeholder}
+                    alt={b.title}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = placeholder }}
+                  />
+                </div>
+                <p className="font-display font-bold text-[0.8rem] leading-snug text-ink line-clamp-2 group-hover:text-accent transition-colors">
+                  {b.title}
+                </p>
+                {b.author && (
+                  <p className="font-sans text-[9px] uppercase tracking-[0.12em] text-muted -mt-1">
+                    {b.author}
+                  </p>
+                )}
+                <p className="font-serif text-[0.72rem] italic leading-snug text-muted">
+                  {b.reason}
+                </p>
+              </Link>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="font-sans text-sm text-muted italic">Nessun libro vicino trovato nella tua biblioteca.</p>
+      )}
+    </section>
+  )
+}
+
 // ─── Critical context ─────────────────────────────────────────────────────────
 
 const REVIEW_LINKS = [
@@ -580,7 +651,7 @@ function CriticalContext({ book, context, loading }) {
 
 // ─── Content — separate component so hooks are always called in stable order ──
 
-function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalContext, loadingCritical, aiEnabled }) {
+function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalContext, loadingCritical, similarBooks, loadingSimilar, onRegenerateSimilar, aiEnabled }) {
   const { loading, url, description, aiGenerated, regenerate } = useCoverImage(book, aiEnabled)
   const { title, series, volume } = parseTitle(book.title)
   const { user } = useAuth()
@@ -715,6 +786,13 @@ function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalCo
 
         <CriticalContext book={book} context={criticalContext} loading={loadingCritical} />
 
+        <SimilarBooksSection
+          books={similarBooks}
+          loading={loadingSimilar}
+          user={user}
+          onRegenerate={onRegenerateSimilar}
+        />
+
         {book.status === 'read' && (
           <NextStepCard suggestion={nextStep} loading={loadingNextStep} />
         )}
@@ -763,6 +841,83 @@ Niente spoiler sulla trama.`,
     .eq('id', book.id)
 
   return text
+}
+
+// ─── Similar books fetch ───────────────────────────────────────────────────────
+
+async function fetchSimilarBooks(book, force = false) {
+  if (book.similar_books && !force) return book.similar_books
+  if (!book.genre) return []
+
+  const { data: candidates } = await supabase
+    .from('books')
+    .select('id, title, author, synopsis, cover_url')
+    .eq('genre', book.genre)
+    .neq('id', book.id)
+    .not('synopsis', 'is', null)
+    .limit(40)
+
+  if (!candidates?.length) return []
+
+  const list = candidates
+    .map((c, i) => `${i}. "${c.title}" — ${c.author ?? 'autore sconosciuto'}. ${(c.synopsis ?? '').slice(0, 150)}`)
+    .join('\n')
+
+  const targetSynopsis = book.synopsis
+    ? book.synopsis.slice(0, 300)
+    : '(sinossi non disponibile: basati solo su titolo, autore e genere)'
+
+  const res = await fetch('/api/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system: 'Sei un bibliotecario esperto di letteratura. Rispondi sempre in italiano.',
+      messages: [{
+        role: 'user',
+        content: `Libro di riferimento: "${book.title}" di ${book.author ?? ''}. Genere: ${book.genre}.
+${targetSynopsis}
+
+Ecco un elenco di altri libri della stessa biblioteca, numerati:
+${list}
+
+Scegli fino a 4 libri da questo elenco che sono più vicini dal punto di vista letterario al libro di riferimento — per temi, stile, tono o approccio, non solo per genere condiviso. Motiva ogni scelta con una frase breve (max 20 parole).
+
+Rispondi in questo formato JSON:
+{
+  "picks": [
+    { "index": 0, "reason": "una frase breve" }
+  ]
+}
+Solo JSON, nient'altro. Se nessun libro è davvero vicino, restituisci una lista vuota.`,
+      }],
+    }),
+  })
+
+  if (!res.ok) return []
+
+  const data = await res.json()
+  const text = data.content[0].text.trim()
+  const clean = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+
+  let parsed
+  try { parsed = JSON.parse(clean) } catch { return [] }
+
+  const seen = new Set()
+  const picks = (parsed.picks ?? [])
+    .map((p) => {
+      const c = candidates[p.index]
+      if (!c) return null
+      return { id: c.id, title: c.title, author: c.author, cover_url: c.cover_url, reason: p.reason }
+    })
+    .filter(Boolean)
+    .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+    .slice(0, 4)
+
+  await supabase.from('books').update({ similar_books: picks }).eq('id', book.id)
+
+  return picks
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -842,6 +997,8 @@ export default function BookDetail() {
   const [loadingNextStep, setLoadingNextStep] = useState(false)
   const [criticalContext, setCriticalContext] = useState(null)
   const [loadingCritical, setLoadingCritical] = useState(false)
+  const [similarBooks, setSimilarBooks] = useState(null)
+  const [loadingSimilar, setLoadingSimilar] = useState(false)
 
   const aiEnabled = localStorage.getItem('ai-enabled') === 'true'
 
@@ -890,6 +1047,30 @@ export default function BookDetail() {
       .finally(() => setLoadingNextStep(false))
   }, [book?.id])
 
+  // Trigger similar-books suggestion once book loads
+  useEffect(() => {
+    if (!book) return
+    if (book.similar_books) {
+      setSimilarBooks(book.similar_books)
+      return
+    }
+    if (!aiEnabled || !book.genre) return
+    setLoadingSimilar(true)
+    setSimilarBooks(null)
+    fetchSimilarBooks(book)
+      .then((result) => setSimilarBooks(result ?? []))
+      .catch(() => setSimilarBooks([]))
+      .finally(() => setLoadingSimilar(false))
+  }, [book?.id])
+
+  async function handleRegenerateSimilar() {
+    setLoadingSimilar(true)
+    setSimilarBooks(null)
+    const result = await fetchSimilarBooks(book, true).catch(() => [])
+    setSimilarBooks(result ?? [])
+    setLoadingSimilar(false)
+  }
+
   function handleSaved() {
     setIsEditing(false)
     fetchBook()
@@ -931,6 +1112,9 @@ export default function BookDetail() {
             loadingNextStep={loadingNextStep}
             criticalContext={criticalContext}
             loadingCritical={loadingCritical}
+            similarBooks={similarBooks}
+            loadingSimilar={loadingSimilar}
+            onRegenerateSimilar={handleRegenerateSimilar}
             aiEnabled={aiEnabled}
           />
           {isEditing && (
