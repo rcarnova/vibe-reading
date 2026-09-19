@@ -69,6 +69,107 @@ Rispondi SOLO con il JSON, niente altro.`,
   return JSON.parse(clean)
 }
 
+// ─── Work projects API ─────────────────────────────────────────────────────────
+
+const TIPOLOGIA_TO_GENRES = {
+  'Coaching': ['Leadership e management', 'Crescita personale'],
+  'Strategy': ['Leadership e management', 'Vendita e business'],
+  'Rebranding': ['Arte e design', 'Comunicazione e media'],
+  'Identity': ['Arte e design', 'Comunicazione e media'],
+  'Branding': ['Arte e design', 'Comunicazione e media'],
+  'Brand Building': ['Arte e design', 'Comunicazione e media'],
+  'Copy': ['Comunicazione e media'],
+  'Speaker': ['Comunicazione e media'],
+  'Marketing': ['Vendita e business', 'Comunicazione e media'],
+  'Cultura organizzativa': ['Leadership e management', 'Crescita personale'],
+  'Affiancamento': ['Leadership e management'],
+  'Interno Venturo': ['Leadership e management'],
+}
+
+async function fetchActiveProjects() {
+  const res = await fetch('/api/notion-projects')
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.projects ?? []
+}
+
+async function fetchProjectBooks(projects) {
+  if (!projects.length) return []
+
+  const genreSet = new Set()
+  projects.forEach((p) => {
+    (p.tipologia ?? []).forEach((t) => {
+      (TIPOLOGIA_TO_GENRES[t] ?? []).forEach((g) => genreSet.add(g))
+    })
+  })
+  if (!genreSet.size) return []
+
+  const { data: candidates } = await supabase
+    .from('books')
+    .select('id, title, author, genre, synopsis, cover_url')
+    .in('genre', Array.from(genreSet))
+    .not('synopsis', 'is', null)
+    .limit(40)
+
+  if (!candidates?.length) return []
+
+  const projectList = projects
+    .map((p) => `- "${p.name}" (${(p.tipologia ?? []).join(', ') || 'senza tipologia'}, fase: ${p.fase ?? 'n/d'})`)
+    .join('\n')
+
+  const list = candidates
+    .map((c, i) => `${i}. "${c.title}" — ${c.author ?? 'autore sconosciuto'} [${c.genre}]. ${(c.synopsis ?? '').slice(0, 150)}`)
+    .join('\n')
+
+  const res = await fetch('/api/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      system: 'Sei un consulente di lettura personale. Rispondi sempre in italiano.',
+      messages: [{
+        role: 'user',
+        content: `Questi sono i progetti di lavoro attualmente in corso:
+${projectList}
+
+Questi sono i libri disponibili nella biblioteca, numerati:
+${list}
+
+Scegli fino a 3 libri da questo elenco che sarebbero utili rispetto a questi progetti di lavoro — per temi, competenze o prospettiva. Per ognuno indica a quale progetto si collega. Motiva con una frase breve (max 20 parole).
+
+Rispondi in questo formato JSON:
+{
+  "picks": [
+    { "index": 0, "project": "nome del progetto", "reason": "una frase breve" }
+  ]
+}
+Solo JSON, nient'altro. Se nessun libro è rilevante, restituisci una lista vuota.`,
+      }],
+    }),
+  })
+
+  if (!res.ok) return []
+
+  const data = await res.json()
+  const text = data.content[0].text.trim()
+  const clean = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+
+  let parsed
+  try { parsed = JSON.parse(clean) } catch { return [] }
+
+  const seen = new Set()
+  return (parsed.picks ?? [])
+    .map((p) => {
+      const c = candidates[p.index]
+      if (!c) return null
+      return { id: c.id, title: c.title, author: c.author, cover_url: c.cover_url, reason: p.reason, project: p.project }
+    })
+    .filter(Boolean)
+    .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+    .slice(0, 3)
+}
+
 // ─── Reality bridge API ───────────────────────────────────────────────────────
 
 const RSS_FEEDS = [
@@ -409,6 +510,10 @@ export default function Home() {
   const [loadingConnection, setLoadingConnection] = useState(false)
   const [loadingRefresh, setLoadingRefresh] = useState(false)
 
+  // Work projects state
+  const [workBooks, setWorkBooks] = useState(() => ss('work-books'))
+  const [loadingWorkBooks, setLoadingWorkBooks] = useState(false)
+
   // Restore scroll position after state is hydrated
   useEffect(() => {
     const saved = sessionStorage.getItem('home-scroll')
@@ -464,6 +569,47 @@ export default function Home() {
 
     init()
   }, [])
+
+  // Fetch active work projects + compute connected books on mount
+  useEffect(() => {
+    const alreadyCached = !!ss('work-books')
+    if (alreadyCached || !aiEnabled) return
+
+    async function initWork() {
+      setLoadingWorkBooks(true)
+      try {
+        const projects = await fetchActiveProjects()
+        if (!projects.length) return
+        const books = await fetchProjectBooks(projects)
+        sessionStorage.setItem('work-books', JSON.stringify(books))
+        setWorkBooks(books)
+      } catch (err) {
+        console.error('Work books init error:', err)
+        // Fail silently — section hidden
+      } finally {
+        setLoadingWorkBooks(false)
+      }
+    }
+
+    initWork()
+  }, [])
+
+  async function handleRefreshWorkBooks() {
+    if (!aiEnabled) return
+    setLoadingWorkBooks(true)
+    setWorkBooks(null)
+    try {
+      const projects = await fetchActiveProjects()
+      const books = projects.length ? await fetchProjectBooks(projects) : []
+      sessionStorage.setItem('work-books', JSON.stringify(books))
+      setWorkBooks(books)
+    } catch (err) {
+      console.error('Work books refresh error:', err)
+      setWorkBooks([])
+    } finally {
+      setLoadingWorkBooks(false)
+    }
+  }
 
   async function handleRefreshConnection() {
     if (!bridgeNews?.length || !bridgeBooks.length || !aiEnabled) return
@@ -752,6 +898,53 @@ export default function Home() {
               ) : loadingRefresh ? (
                 <RealityBridgeSkeleton />
               ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Work projects bridge */}
+        {aiEnabled && (loadingWorkBooks || (workBooks && workBooks.length > 0)) && (
+          <div style={{ width: 'min(960px, 90vw)', marginTop: '48px' }}>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '40px' }}>
+              <div className="flex items-center justify-between mb-6">
+                <p
+                  className="font-sans text-[9px] uppercase tracking-[0.22em]"
+                  style={{ color: '#6B6B6B' }}
+                >
+                  Dai tuoi progetti in corso
+                </p>
+                <button
+                  onClick={handleRefreshWorkBooks}
+                  disabled={loadingWorkBooks}
+                  className="font-sans text-[10px] uppercase tracking-[0.16em] transition-opacity disabled:opacity-40"
+                  style={{ color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: loadingWorkBooks ? 'not-allowed' : 'pointer' }}
+                >
+                  {loadingWorkBooks ? 'Cercando…' : 'Aggiorna'}
+                </button>
+              </div>
+              {loadingWorkBooks ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex flex-col gap-2">
+                      <div className="w-full aspect-[2/3] animate-pulse rounded-sm" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                      <div className="h-3 rounded animate-pulse w-3/4" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                      <div className="h-2.5 rounded animate-pulse w-1/2" style={{ background: 'rgba(255,255,255,0.15)' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {workBooks.map((b, i) => (
+                    <RecommendedCard
+                      key={b.id}
+                      rec={{ title: b.title, author: b.author, reason: b.project ? `${b.project} — ${b.reason}` : b.reason, isExternal: false }}
+                      libraryBook={b}
+                      index={i}
+                      onNavigate={saveScroll}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
