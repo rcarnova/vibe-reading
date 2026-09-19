@@ -714,13 +714,10 @@ async function fetchCriticalContext(book) {
     return book.critical_context
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/api/anthropic', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
@@ -766,13 +763,10 @@ async function fetchNextStep(book) {
     .map((b) => `- ${b.title} (${b.author ?? ''})`)
     .join('\n')
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/api/anthropic', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': import.meta.env.VITE_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
