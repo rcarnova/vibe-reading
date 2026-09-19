@@ -43,6 +43,24 @@ async function openLibraryCoverSearch(title, author) {
   } catch { return null }
 }
 
+async function googleBooksCover(isbn, title, author) {
+  try {
+    const GBOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
+    const keyParam = GBOOKS_KEY ? `&key=${GBOOKS_KEY}` : ''
+    const q = isbn
+      ? `isbn:${isbn}`
+      : `intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`
+    const res = await fetch(
+      `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1${keyParam}`
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const raw = data.items?.[0]?.volumeInfo?.imageLinks?.thumbnail
+    if (!raw) return null
+    return raw.replace('http:', 'https:').replace('zoom=1', 'zoom=3').replace('&edge=curl', '')
+  } catch { return null }
+}
+
 // ─── Description resolution ───────────────────────────────────────────────────
 
 async function googleDescription(isbn, title, author) {
@@ -120,7 +138,12 @@ async function resolve(book, aiEnabled = true, forceRegenerate = false) {
       url = await openLibraryCoverSearch(title, author)
     }
 
-    // 3. Placeholder — always show something
+    // 3. Google Books — often has a cover when Open Library has none
+    if (!url) {
+      url = await googleBooksCover(isbn, title, author)
+    }
+
+    // 4. Placeholder — always show something
     if (!url) {
       url = generateCoverPlaceholder(title, author)
     }
