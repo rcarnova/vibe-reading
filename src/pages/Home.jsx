@@ -481,6 +481,174 @@ function RealityBridgeCard({ connection, newsUrl, book, onRefresh, loadingRefres
   )
 }
 
+// ─── Almanac (on this day) ─────────────────────────────────────────────────────
+
+// Real, sourced historical events from Wikipedia — the AI only reasons over
+// these, it never recalls "what happened on this day" from memory, which
+// would risk hallucinated dates/events.
+async function fetchOnThisDayEvents() {
+  const now = new Date()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  try {
+    const res = await fetch(`https://api.wikimedia.org/feed/v1/wikipedia/it/onthisday/events/${mm}/${dd}`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return (data.events ?? [])
+      .filter((e) => e.text && e.year)
+      .map((e) => ({ text: e.text, year: e.year }))
+  } catch {
+    return []
+  }
+}
+
+async function fetchAlmanacConnection(events, books) {
+  if (!events.length || !books.length) return null
+
+  const eventList = events
+    .map((e, i) => `${i}. (${e.year}) ${e.text}`)
+    .join('\n')
+
+  const bookList = books
+    .map((b, i) => `${i}. "${b.title}" — ${b.author ?? ''} [${b.genre ?? 'genere non specificato'}]`)
+    .join('\n')
+
+  const res = await fetch('/api/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      system: 'Sei uno storico e consulente culturale. Rispondi sempre in italiano.',
+      messages: [{
+        role: 'user',
+        content: `Ecco un elenco di eventi realmente accaduti in questo giorno nella storia (fonte: Wikipedia), numerati:
+${eventList}
+
+Scegli l'evento più significativo, sorprendente o interessante — solo tra quelli elencati, non inventarne altri.
+
+Questi sono i libri nella biblioteca dell'utente, numerati:
+${bookList}
+
+Trova UN libro da questo elenco che si colleghi in modo interessante all'evento scelto — per tema, epoca, contesto o riflessione che suscita.
+
+Rispondi in questo formato JSON:
+{
+  "event_index": 0,
+  "book_index": 0,
+  "connection": "una frase di max 30 parole che spiega il collegamento",
+  "spark": "una domanda provocatoria di max 15 parole che collega i due"
+}
+Solo JSON, nient'altro.`,
+      }],
+    }),
+  })
+
+  if (!res.ok) return null
+
+  const data = await res.json()
+  const text = data.content[0].text.trim()
+  const clean = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+
+  let parsed
+  try { parsed = JSON.parse(clean) } catch { return null }
+
+  const event = events[parsed.event_index]
+  const book = books[parsed.book_index]
+  if (!event || !book) return null
+
+  return {
+    event_text: event.text,
+    event_year: event.year,
+    book_id: book.id,
+    book_title: book.title,
+    book_author: book.author,
+    book_cover_url: book.cover_url,
+    connection: parsed.connection,
+    spark: parsed.spark,
+  }
+}
+
+function AlmanaccoCard({ almanac, onRefresh, loadingRefresh, onNavigate }) {
+  const book = {
+    id: almanac.book_id,
+    title: almanac.book_title,
+    author: almanac.book_author,
+    cover_url: almanac.book_cover_url,
+  }
+
+  return (
+    <div
+      className="rounded-sm overflow-hidden fade-in"
+      style={{
+        background: 'rgba(255,255,255,0.12)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        padding: '24px',
+      }}
+    >
+      <div className="flex gap-6 items-start">
+        <div className="flex-1 min-w-0">
+          <span
+            className="inline-block font-sans text-[8px] uppercase tracking-[0.2em] px-1.5 py-px mb-2"
+            style={{ background: '#2E4057', color: 'white' }}
+          >
+            {almanac.event_year}
+          </span>
+          <p className="font-sans text-sm font-medium leading-snug" style={{ color: 'white' }}>
+            {almanac.event_text}
+          </p>
+        </div>
+
+        <div className="w-px self-stretch flex-shrink-0" style={{ background: 'rgba(255,255,255,0.25)' }} />
+
+        <div className="flex gap-3 items-start flex-shrink-0" style={{ width: '180px' }}>
+          <BookThumbnail book={book} />
+          <div className="min-w-0">
+            <p className="font-display font-semibold text-sm leading-snug line-clamp-3" style={{ color: 'white' }}>
+              {book.title}
+            </p>
+            {book.author && (
+              <p className="font-sans text-[10px] uppercase tracking-[0.12em] mt-1" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                {book.author}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+        <p className="font-serif text-[0.88rem] leading-relaxed italic" style={{ color: 'rgba(255,255,255,0.9)' }}>
+          {almanac.connection}
+        </p>
+        <p className="font-sans text-xs mt-3" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          → {almanac.spark}
+        </p>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between">
+        <Link
+          to={`/book/${book.id}`}
+          onClick={onNavigate}
+          className="font-sans text-[10px] uppercase tracking-[0.16em] transition-opacity hover:opacity-70"
+          style={{ color: 'rgba(255,255,255,0.75)' }}
+        >
+          Vai al libro →
+        </Link>
+        <button
+          onClick={onRefresh}
+          disabled={loadingRefresh}
+          className="font-sans text-[10px] uppercase tracking-[0.16em] transition-opacity disabled:opacity-40"
+          style={{ color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: loadingRefresh ? 'not-allowed' : 'pointer' }}
+        >
+          {loadingRefresh ? 'Cercando…' : 'Un altro evento'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 function ss(key) { try { return JSON.parse(sessionStorage.getItem(key)) } catch { return null } }
@@ -513,6 +681,10 @@ export default function Home() {
   // Work projects state
   const [workBooks, setWorkBooks] = useState(() => ss('work-books'))
   const [loadingWorkBooks, setLoadingWorkBooks] = useState(false)
+
+  // Almanac state
+  const [almanac, setAlmanac] = useState(() => ss('almanacco'))
+  const [loadingAlmanac, setLoadingAlmanac] = useState(false)
 
   // Restore scroll position after state is hydrated
   useEffect(() => {
@@ -608,6 +780,55 @@ export default function Home() {
       setWorkBooks([])
     } finally {
       setLoadingWorkBooks(false)
+    }
+  }
+
+  // Fetch today's real historical events + compute a book connection on mount
+  useEffect(() => {
+    const alreadyCached = !!ss('almanacco')
+    if (alreadyCached || !aiEnabled) return
+
+    async function initAlmanac() {
+      setLoadingAlmanac(true)
+      try {
+        const [events, { data: books }] = await Promise.all([
+          fetchOnThisDayEvents(),
+          supabase.from('books').select('id, title, author, genre, cover_url'),
+        ])
+        if (!events.length || !books?.length) return
+        const result = await fetchAlmanacConnection(events, books)
+        if (result) {
+          sessionStorage.setItem('almanacco', JSON.stringify(result))
+          setAlmanac(result)
+        }
+      } catch (err) {
+        console.error('Almanac init error:', err)
+        // Fail silently — section hidden
+      } finally {
+        setLoadingAlmanac(false)
+      }
+    }
+
+    initAlmanac()
+  }, [])
+
+  async function handleRefreshAlmanac() {
+    if (!aiEnabled) return
+    setLoadingAlmanac(true)
+    setAlmanac(null)
+    try {
+      const [events, { data: books }] = await Promise.all([
+        fetchOnThisDayEvents(),
+        supabase.from('books').select('id, title, author, genre, cover_url'),
+      ])
+      const result = events.length && books?.length ? await fetchAlmanacConnection(events, books) : null
+      sessionStorage.setItem('almanacco', JSON.stringify(result))
+      setAlmanac(result)
+    } catch (err) {
+      console.error('Almanac refresh error:', err)
+      setAlmanac(null)
+    } finally {
+      setLoadingAlmanac(false)
     }
   }
 
@@ -945,6 +1166,30 @@ export default function Home() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Almanac */}
+        {aiEnabled && (loadingAlmanac || almanac) && (
+          <div style={{ width: 'min(960px, 90vw)', marginTop: '48px' }}>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '40px' }}>
+              <p
+                className="font-sans text-[9px] uppercase tracking-[0.22em] mb-6"
+                style={{ color: '#6B6B6B' }}
+              >
+                Accadde oggi, nella tua biblioteca
+              </p>
+              {loadingAlmanac ? (
+                <RealityBridgeSkeleton />
+              ) : almanac ? (
+                <AlmanaccoCard
+                  almanac={almanac}
+                  onRefresh={handleRefreshAlmanac}
+                  loadingRefresh={loadingAlmanac}
+                  onNavigate={saveScroll}
+                />
+              ) : null}
             </div>
           </div>
         )}
