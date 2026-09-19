@@ -8,14 +8,18 @@ const cache = new Map()
 
 // ─── Cover resolution ─────────────────────────────────────────────────────────
 
-// Returns true if the URL points to a real image (Content-Length > 1000 bytes).
-// Open Library returns a 1x1 pixel GIF (~807 bytes) for missing covers.
+// Returns true if the URL points to a real image. Open Library's cover CDN
+// never sends Content-Length on HEAD requests (confirmed for both real and
+// missing covers), so that can't be used to tell them apart. What does
+// differ: a real cover redirects through archive.org and the final response
+// carries a Content-Type; the 1x1 placeholder GIF is served directly with no
+// Content-Type at all.
 async function isRealImage(url) {
   try {
     const res = await fetch(url, { method: 'HEAD' })
     if (!res.ok) return false
-    const len = parseInt(res.headers.get('content-length') ?? '0', 10)
-    return len > 1000
+    const contentType = res.headers.get('content-type') ?? ''
+    return contentType.startsWith('image/')
   } catch { return false }
 }
 
