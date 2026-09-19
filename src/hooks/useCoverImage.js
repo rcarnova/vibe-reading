@@ -80,9 +80,26 @@ async function openLibraryDescription(isbn, title, author) {
   } catch { return null }
 }
 
+// ─── Refusal detection ─────────────────────────────────────────────────────────
+
+// The AI sometimes replies with an apology instead of a synopsis when it
+// doesn't recognize an obscure/regional title. Never persist or show that
+// as if it were real synopsis text.
+const REFUSAL_PATTERNS = [
+  'mi dispiace', 'mi scuso', 'non ho informazioni', 'non riesco a trovare',
+  'non riesco a fornire', 'non posso fornire', 'non dispongo di informazioni',
+  'devo chiarire', 'devo segnalare', 'devo fare una precisazione',
+  'non esiste un libro', 'non ho dati verificati',
+]
+
+function looksLikeRefusal(text) {
+  const lower = text.toLowerCase()
+  return REFUSAL_PATTERNS.some((p) => lower.includes(p))
+}
+
 // ─── Main resolver ────────────────────────────────────────────────────────────
 
-async function resolve(book, aiEnabled = true) {
+async function resolve(book, aiEnabled = true, forceRegenerate = false) {
   const { isbn, title, author } = book
 
   // ── Cover ──
@@ -106,7 +123,7 @@ async function resolve(book, aiEnabled = true) {
   }
 
   // ── Synopsis (already saved) ──
-  if (book.synopsis) {
+  if (book.synopsis && !forceRegenerate) {
     return { url, description: book.synopsis, aiGenerated: book.ai_synopsis === true }
   }
 
@@ -121,8 +138,9 @@ async function resolve(book, aiEnabled = true) {
   let aiGenerated = false
   if (!description && aiEnabled) {
     try {
-      description = await generateSynopsis(title, author, book.genre)
-      if (description) {
+      const aiText = await generateSynopsis(title, author, book.genre)
+      if (aiText && !looksLikeRefusal(aiText)) {
+        description = aiText
         aiGenerated = true
         supabase
           .from('books')
@@ -171,5 +189,12 @@ export function useCoverImage(book, aiEnabled = true) {
     return () => { cancelled = true }
   }, [cacheKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return state
+  async function regenerate() {
+    setState((s) => ({ ...s, loading: true }))
+    const result = await resolve(book, aiEnabled, true)
+    cache.set(cacheKey, result)
+    setState({ loading: false, ...result })
+  }
+
+  return { ...state, regenerate }
 }

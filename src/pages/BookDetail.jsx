@@ -581,9 +581,14 @@ function CriticalContext({ book, context, loading }) {
 // ─── Content — separate component so hooks are always called in stable order ──
 
 function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalContext, loadingCritical, aiEnabled }) {
-  const { loading, url, description, aiGenerated } = useCoverImage(book, aiEnabled)
+  const { loading, url, description, aiGenerated, regenerate } = useCoverImage(book, aiEnabled)
   const { title, series, volume } = parseTitle(book.title)
   const { user } = useAuth()
+
+  async function handleRegenerateSynopsis() {
+    await supabase.from('books').update({ synopsis: null, ai_synopsis: false }).eq('id', book.id)
+    regenerate()
+  }
 
   return (
     <div className="flex flex-col sm:flex-row gap-12 lg:gap-16">
@@ -646,12 +651,22 @@ function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalCo
           </div>
         </div>
 
-        {(loading || description) && (
+        {(loading || description || user) && (
           <section className="mb-8">
             <hr className="border-rule mb-5" />
-            <h2 className="font-sans text-[9px] uppercase tracking-[0.18em] text-muted mb-4">
-              Sinossi
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-sans text-[9px] uppercase tracking-[0.18em] text-muted">
+                Sinossi
+              </h2>
+              {user && !loading && (
+                <button
+                  onClick={handleRegenerateSynopsis}
+                  className="font-sans text-[9px] uppercase tracking-[0.18em] text-muted hover:text-ink border-b border-transparent hover:border-ink transition-colors"
+                >
+                  Rigenera sinossi
+                </button>
+              )}
+            </div>
             {loading ? (
               <div className="flex flex-col gap-2.5">
                 <div className="h-3 bg-rule animate-pulse w-full" />
@@ -660,7 +675,7 @@ function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalCo
                 <div className="h-3 bg-rule animate-pulse w-11/12" />
                 <div className="h-3 bg-rule animate-pulse w-8/12" />
               </div>
-            ) : (
+            ) : description ? (
               <div>
                 <p className="font-serif text-base leading-relaxed text-ink">{description}</p>
                 {aiGenerated && (
@@ -669,6 +684,8 @@ function BookDetailContent({ book, onEdit, nextStep, loadingNextStep, criticalCo
                   </span>
                 )}
               </div>
+            ) : (
+              <p className="font-sans text-sm text-muted italic">Nessuna sinossi disponibile.</p>
             )}
           </section>
         )}
