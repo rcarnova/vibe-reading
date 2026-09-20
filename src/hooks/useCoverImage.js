@@ -43,33 +43,66 @@ async function openLibraryCoverSearch(title, author) {
   } catch { return null }
 }
 
-async function googleBooksCoverOnce(isbn, title, author) {
+function normalizeForMatch(s) {
+  return (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+// Google's `intitle:` search is fuzzy — it can return an unrelated book that
+// just shares a word (e.g. searching "Vita liquida" surfacing "La mia vita").
+// Only accept a result whose title actually contains (or is contained by)
+// the requested title.
+function titleRoughlyMatches(requested, found) {
+  const r = normalizeForMatch(requested)
+  const f = normalizeForMatch(found)
+  if (!r || !f) return false
+  return r.includes(f) || f.includes(r) || (r.length > 15 && f.includes(r.slice(0, 15)))
+}
+
+// Searches by title/author (not ISBN — matching the exact physical edition
+// isn't the goal here, getting a good-looking recognizable cover is) and
+// picks the most recent Italian edition that actually has cover art. A
+// single ISBN-exact lookup often pins the book to whatever edition happens
+// to be on record, which can be a plain library-scan cover from an old
+// printing even when a nicer modern reprint exists.
+async function googleBooksBestCoverOnce(title, author) {
   const GBOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
   const keyParam = GBOOKS_KEY ? `&key=${GBOOKS_KEY}` : ''
-  const q = isbn
-    ? `isbn:${isbn}`
-    : `intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`
+  const q = author
+    ? `intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`
+    : `intitle:${encodeURIComponent(title)}`
   const res = await fetch(
-    `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1${keyParam}`
+    `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=10${keyParam}`
   )
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   const data = await res.json()
-  const raw = data.items?.[0]?.volumeInfo?.imageLinks?.thumbnail
-  if (!raw) return null
-  // Note: don't upgrade to zoom=3 here — for some editions Google Books has
-  // no high-zoom asset and serves a literal "image not available" graphic
-  // at that zoom level, even though zoom=1 (the default) is a real cover.
-  return raw.replace('http:', 'https:').replace('&edge=curl', '')
+
+  const candidates = (data.items ?? [])
+    .map((item) => ({
+      thumbnail: item.volumeInfo?.imageLinks?.thumbnail,
+      year: parseInt(item.volumeInfo?.publishedDate?.slice(0, 4) || '0', 10),
+      isItalian: item.volumeInfo?.language === 'it',
+      foundTitle: item.volumeInfo?.title,
+    }))
+    .filter((c) => c.thumbnail && titleRoughlyMatches(title, c.foundTitle))
+    // Italian editions first (this library is Italian-language), then most
+    // recent — newer printings tend to have nicer, illustrated cover art.
+    .sort((a, b) => (b.isItalian - a.isItalian) || (b.year - a.year))
+
+  if (!candidates.length) return null
+  // Note: don't upgrade to zoom=3 — for some editions Google Books has no
+  // high-zoom asset and serves a literal "image not available" graphic at
+  // that zoom level, even though zoom=1 (the default) is a real cover.
+  return candidates[0].thumbnail.replace('http:', 'https:').replace('&edge=curl', '')
 }
 
 // Google Books returns intermittent 503s — retry once before giving up.
-async function googleBooksCover(isbn, title, author) {
+async function googleBooksBestCover(title, author) {
   try {
-    return await googleBooksCoverOnce(isbn, title, author)
+    return await googleBooksBestCoverOnce(title, author)
   } catch {
     try {
       await new Promise((r) => setTimeout(r, 800))
-      return await googleBooksCoverOnce(isbn, title, author)
+      return await googleBooksBestCoverOnce(title, author)
     } catch {
       return null
     }
@@ -143,19 +176,19 @@ async function resolve(book, aiEnabled = true, forceRegenerate = false) {
   let url = book.cover_url || null
 
   if (!url) {
-    // 1. Open Library by ISBN (direct URL + HEAD verify)
-    if (isbn) {
-      url = await openLibraryCoverByIsbn(isbn)
-    }
+    // 1. Google Books by title+author — best coverage, picks the most
+    // recent edition with real cover art rather than pinning to whatever
+    // edition the ISBN on record happens to be.
+    url = await googleBooksBestCover(title, author)
 
     // 2. Open Library search by title+author → cover_i
     if (!url) {
       url = await openLibraryCoverSearch(title, author)
     }
 
-    // 3. Google Books — often has a cover when Open Library has none
-    if (!url) {
-      url = await googleBooksCover(isbn, title, author)
+    // 3. Open Library by ISBN, as a last resort if there's one on record
+    if (!url && isbn) {
+      url = await openLibraryCoverByIsbn(isbn)
     }
 
     // 4. Placeholder — always show something
