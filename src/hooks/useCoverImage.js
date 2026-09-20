@@ -43,22 +43,37 @@ async function openLibraryCoverSearch(title, author) {
   } catch { return null }
 }
 
+async function googleBooksCoverOnce(isbn, title, author) {
+  const GBOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
+  const keyParam = GBOOKS_KEY ? `&key=${GBOOKS_KEY}` : ''
+  const q = isbn
+    ? `isbn:${isbn}`
+    : `intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`
+  const res = await fetch(
+    `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1${keyParam}`
+  )
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const data = await res.json()
+  const raw = data.items?.[0]?.volumeInfo?.imageLinks?.thumbnail
+  if (!raw) return null
+  // Note: don't upgrade to zoom=3 here — for some editions Google Books has
+  // no high-zoom asset and serves a literal "image not available" graphic
+  // at that zoom level, even though zoom=1 (the default) is a real cover.
+  return raw.replace('http:', 'https:').replace('&edge=curl', '')
+}
+
+// Google Books returns intermittent 503s — retry once before giving up.
 async function googleBooksCover(isbn, title, author) {
   try {
-    const GBOOKS_KEY = import.meta.env.VITE_GOOGLE_BOOKS_API_KEY
-    const keyParam = GBOOKS_KEY ? `&key=${GBOOKS_KEY}` : ''
-    const q = isbn
-      ? `isbn:${isbn}`
-      : `intitle:${encodeURIComponent(title)}+inauthor:${encodeURIComponent(author)}`
-    const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1${keyParam}`
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    const raw = data.items?.[0]?.volumeInfo?.imageLinks?.thumbnail
-    if (!raw) return null
-    return raw.replace('http:', 'https:').replace('zoom=1', 'zoom=3').replace('&edge=curl', '')
-  } catch { return null }
+    return await googleBooksCoverOnce(isbn, title, author)
+  } catch {
+    try {
+      await new Promise((r) => setTimeout(r, 800))
+      return await googleBooksCoverOnce(isbn, title, author)
+    } catch {
+      return null
+    }
+  }
 }
 
 // ─── Description resolution ───────────────────────────────────────────────────
