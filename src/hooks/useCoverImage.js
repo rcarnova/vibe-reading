@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import generateSynopsis from '../utils/generateSynopsis'
 import { supabase } from '../lib/supabase'
 import { generateCoverPlaceholder } from '../utils/generateCoverPlaceholder'
+import { generateNobelUtetCover } from '../utils/generateNobelUtetCover'
 
 // Module-level cache. Stores { url, description, aiGenerated } once resolved.
 const cache = new Map()
@@ -171,6 +172,14 @@ function looksLikeRefusal(text) {
 
 async function resolve(book, aiEnabled = true, forceRegenerate = false) {
   const { isbn, title, author } = book
+
+  // Nobel UTET collection entries aren't real catalogued books (their
+  // "title" is just the author's name) — searching Google Books/Open
+  // Library for them is pointless. Always use the dedicated collection
+  // cover style instead of running the full resolution chain.
+  if (book.tags?.includes('Nobel UTET')) {
+    return { url: generateNobelUtetCover(author, book.year), description: null, aiGenerated: false }
+  }
 
   // ── Cover ──
   let url = book.cover_url || null

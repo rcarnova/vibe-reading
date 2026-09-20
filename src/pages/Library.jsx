@@ -153,7 +153,9 @@ export default function Library() {
         console.error('Failed to fetch books:', error.message)
         setAllBooks([])
       } else {
-        setAllBooks(data ?? [])
+        // The Nobel UTET collection has its own dedicated page — keep it out
+        // of the general library view.
+        setAllBooks((data ?? []).filter((b) => !b.tags?.includes('Nobel UTET')))
       }
       setLoadingBooks(false)
     }
